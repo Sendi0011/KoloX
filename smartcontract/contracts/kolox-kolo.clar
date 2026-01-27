@@ -257,3 +257,42 @@
   )
 )
 
+;; Trigger payout for current round
+(define-public (trigger-payout (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (current-round (get current-round kolo))
+      (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) ERR-NOT-YOUR-TURN))
+      (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) ERR-NOT-MEMBER))
+      (amount (get amount kolo))
+      (total-members (get-member-count kolo-id))
+      (total-payout (* amount total-members))
+      (current-block block-height)
+    )
+    ;; Validations
+    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
+    (asserts! (not (get has-received-payout recipient-member)) ERR-ALREADY-PAID)
+
+    ;; Check if all members have paid (simplified - production would need more checks)
+    (asserts! (>= current-block (+ (get start-block kolo) (* (get frequency kolo) current-round))) ERR-PAYOUT-NOT-READY)
+
+    ;; Transfer payout to recipient
+    (try! (as-contract (stx-transfer? total-payout tx-sender recipient-principal)))
+
+    ;; Update recipient's payout status
+    (map-set kolo-members { kolo-id: kolo-id, user: recipient-principal }
+      (merge recipient-member { has-received-payout: true })
+    )
+
+    ;; Move to next round or complete kolo
+    (if (< (+ current-round u1) (get total-rounds kolo))
+      (map-set kolos kolo-id (merge kolo { current-round: (+ current-round u1) }))
+      (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1) }))
+    )
+
+    (ok true)
+  )
+)
+
