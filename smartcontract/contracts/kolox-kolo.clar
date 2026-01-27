@@ -296,3 +296,36 @@
   )
 )
 
+;; Emergency function: Creator can cancel before start (refunds all)
+(define-public (cancel-kolo (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (current-block block-height)
+    )
+    ;; Only creator can cancel
+    (asserts! (is-kolo-creator kolo-id tx-sender) ERR-NOT-AUTHORIZED)
+    ;; Can only cancel before start
+    (asserts! (< current-block (get start-block kolo)) ERR-CANNOT-JOIN)
+    ;; Must be active
+    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+
+    ;; Deactivate kolo
+    (map-set kolos kolo-id (merge kolo { active: false }))
+
+    (ok true)
+  )
+)
+
+;; Read-only helper: Get next payout block
+(define-read-only (get-next-payout-block (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
+    none
+  )
+)
+
+;; Initialize contract (optional, for setup)
+(begin
+  (var-set kolo-nonce u0)
+)
