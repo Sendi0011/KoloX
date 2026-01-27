@@ -131,3 +131,60 @@
 
 ;; Public functions
 
+;; Create a new Kolo
+(define-public (create-kolo 
+    (name (string-ascii 50))
+    (amount uint)
+    (frequency uint)
+    (max-members uint)
+    (start-block uint)
+  )
+  (let
+    (
+      (kolo-id (+ (var-get kolo-nonce) u1))
+      (current-block block-height)
+    )
+    ;; Validations
+    (asserts! (> amount u0) ERR-INVALID-PARAMS)
+    (asserts! (>= max-members u2) ERR-INVALID-PARAMS)
+    (asserts! (<= max-members u50) ERR-INVALID-PARAMS)
+    (asserts! (>= start-block (+ current-block u144)) ERR-INVALID-PARAMS) ;; At least 1 day ahead
+    (asserts! (or (is-eq frequency WEEKLY) (is-eq frequency MONTHLY)) ERR-INVALID-PARAMS)
+
+    ;; Create Kolo
+    (map-set kolos kolo-id
+      {
+        creator: tx-sender,
+        name: name,
+        amount: amount,
+        frequency: frequency,
+        max-members: max-members,
+        current-round: u0,
+        start-block: start-block,
+        total-rounds: max-members,
+        active: true,
+        created-at: current-block
+      }
+    )
+
+    ;; Creator automatically joins at position 0
+    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+      {
+        joined-at: current-block,
+        position: u0,
+        total-contributions: u0,
+        missed-payments: u0,
+        has-received-payout: false
+      }
+    )
+
+    (map-set payout-order { kolo-id: kolo-id, position: u0 } tx-sender)
+    (map-set member-count kolo-id u1)
+
+    ;; Update nonce
+    (var-set kolo-nonce kolo-id)
+
+    (ok kolo-id)
+  )
+)
+
