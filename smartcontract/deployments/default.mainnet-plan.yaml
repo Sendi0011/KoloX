@@ -1,0 +1,18 @@
+---
+id: 0
+name: Mainnet deployment
+network: mainnet
+stacks-node: "https://api.hiro.so"
+bitcoin-node: "http://blockstack:blockstacksystem@bitcoin.blockstack.com:8332"
+plan:
+  batches:
+    - id: 0
+      transactions:
+        - contract-publish:
+            contract-name: kolox-kolo
+            expected-sender: SPCHTPYB58PW0W8N44PPES2KFGHCZXFWZVTEKB04
+            cost: 93790
+            path: contracts/kolox-kolo.clar
+            anchor-block-only: true
+            clarity-version: 2
+      epoch: "3.3"
