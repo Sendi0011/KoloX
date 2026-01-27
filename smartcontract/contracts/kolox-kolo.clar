@@ -220,3 +220,40 @@
   )
 )
 
+;; Make a contribution for the current round
+(define-public (contribute (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (member (unwrap! (get-member-info kolo-id tx-sender) ERR-NOT-MEMBER))
+      (current-round (get current-round kolo))
+      (amount (get amount kolo))
+      (current-block block-height)
+    )
+    ;; Validations
+    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
+    (asserts! (not (has-paid-current-round kolo-id tx-sender)) ERR-ALREADY-PAID)
+
+    ;; Transfer STX to contract
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+
+    ;; Record contribution
+    (map-set round-contributions 
+      { kolo-id: kolo-id, round: current-round, user: tx-sender }
+      {
+        paid: true,
+        amount: amount,
+        paid-at: current-block
+      }
+    )
+
+    ;; Update member stats
+    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+      (merge member { total-contributions: (+ (get total-contributions member) amount) })
+    )
+
+    (ok true)
+  )
+)
+
