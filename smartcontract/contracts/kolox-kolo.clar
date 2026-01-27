@@ -1,3 +1,4 @@
+;; @clarity-version 2
 ;; KoloX - Community Savings Platform on Stacks
 ;; A trustless rotating savings and credit association (ROSCA) contract
 
@@ -235,8 +236,12 @@
     (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
     (asserts! (not (has-paid-current-round kolo-id tx-sender)) ERR-ALREADY-PAID)
 
-    ;; Transfer STX to contract
-    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    ;; Transfer STX from user to contract
+    (try!
+      (as-contract
+        (stx-transfer? amount tx-sender tx-sender)
+      )
+    )
 
     ;; Record contribution
     (map-set round-contributions 
