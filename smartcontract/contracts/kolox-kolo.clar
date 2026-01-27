@@ -188,3 +188,35 @@
   )
 )
 
+;; Join an existing Kolo
+(define-public (join-kolo (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (current-members (get-member-count kolo-id))
+      (current-block block-height)
+    )
+    ;; Validations
+    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (< current-block (get start-block kolo)) ERR-CANNOT-JOIN)
+    (asserts! (< current-members (get max-members kolo)) ERR-KOLO-FULL)
+    (asserts! (not (is-member kolo-id tx-sender)) ERR-ALREADY-MEMBER)
+
+    ;; Add member
+    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+      {
+        joined-at: current-block,
+        position: current-members,
+        total-contributions: u0,
+        missed-payments: u0,
+        has-received-payout: false
+      }
+    )
+
+    (map-set payout-order { kolo-id: kolo-id, position: current-members } tx-sender)
+    (map-set member-count kolo-id (+ current-members u1))
+
+    (ok true)
+  )
+)
+
