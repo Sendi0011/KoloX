@@ -1,14 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { Button } from '@/components/ui/button'
 import { Zap, Menu, X } from 'lucide-react'
 import { useState } from 'react'
-import { useAppKit } from '@appkit/react'
+import { ConnectButton } from '@/components/wallet/connect-button'
 
 export function Navbar() {
   const [isOpen, setIsOpen] = useState(false)
-  const { open } = useAppKit()
 
   return (
     <nav className="sticky top-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -37,12 +35,7 @@ export function Navbar() {
 
           {/* Wallet Button */}
           <div className="hidden md:flex items-center gap-4">
-            <button
-              onClick={() => open()}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              Connect Wallet
-            </button>
+            <ConnectButton />
           </div>
 
           {/* Mobile Menu Button */}
@@ -70,15 +63,9 @@ export function Navbar() {
             <Link href="#" className="block px-4 py-2 text-muted-foreground hover:text-foreground">
               Docs
             </Link>
-            <button
-              onClick={() => {
-                open()
-                setIsOpen(false)
-              }}
-              className="w-full px-6 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              Connect Wallet
-            </button>
+            <div className="px-4">
+              <ConnectButton />
+            </div>
           </div>
         )}
       </div>
