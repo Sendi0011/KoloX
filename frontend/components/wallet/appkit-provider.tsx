@@ -1,25 +1,44 @@
 'use client'
 
-import React, { ReactNode } from 'react'
-import { createAppKit } from '@appkit/react'
-import { mainnet } from '@appkit/networks'
+import React, { ReactNode, createContext, useContext, useState, useEffect } from 'react'
+import { StacksProvider } from '@stacks/connect'
 
-// Initialize AppKit
-const projectId = process.env.NEXT_PUBLIC_APPKIT_PROJECT_ID || 'default-project-id'
+interface StacksContextType {
+  isConnected: boolean
+  userAddress: string | null
+}
 
-createAppKit({
-  networks: [mainnet],
-  projectId: projectId,
-  enableAnalytics: true,
-  themeMode: 'light',
-  metadata: {
-    name: 'KoloX',
-    description: 'Community Savings on Stacks',
-    url: typeof window !== 'undefined' ? window.location.origin : 'https://kolox.app',
-    icons: ['https://avatars.githubusercontent.com/u/37784886']
-  }
-})
+const StacksContext = createContext<StacksContextType | undefined>(undefined)
 
 export function AppKitProvider({ children }: { children: ReactNode }) {
-  return <>{children}</>
+  const [isConnected, setIsConnected] = useState(false)
+  const [userAddress, setUserAddress] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Check if user was previously connected
+    const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('stacksAddress') : null
+    if (storedAddress) {
+      setUserAddress(storedAddress)
+      setIsConnected(true)
+    }
+  }, [])
+
+  return (
+    <StacksContext.Provider value={{ isConnected, userAddress }}>
+      <StacksProvider appDetails={{
+        name: 'KoloX',
+        icon: 'https://avatars.githubusercontent.com/u/37784886',
+      }}>
+        {children}
+      </StacksProvider>
+    </StacksContext.Provider>
+  )
+}
+
+export function useStacksContext() {
+  const context = useContext(StacksContext)
+  if (!context) {
+    throw new Error('useStacksContext must be used within AppKitProvider')
+  }
+  return context
 }
