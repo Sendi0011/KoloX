@@ -3,14 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "next build",
     "dev": "next dev",
-    "lint": "eslint .",
-    "start": "next start"
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint ."
   },
   "dependencies": {
-    "@appkit/networks": "^1.12.0",
-    "@appkit/react": "^1.12.0",
+    "@stacks/auth": "^6.15.1",
+    "@stacks/connect": "^8.2.4",
+    "@stacks/transactions": "^6.15.1",
+    "@stacks/common": "^6.15.1",
+    "@stacks/network": "^6.15.1",
     "@hookform/resolvers": "^3.10.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
@@ -60,7 +63,8 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
     "vaul": "^1.1.2",
-    "zod": "3.25.76"
+    "zod": "3.25.76",
+    "@stacks/connect-react": "23.1.4"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.9",
