@@ -1,12 +1,10 @@
 'use client'
 
-import { Button } from '@/components/ui/button'
-import { Zap, Menu } from 'lucide-react'
+import { Zap } from 'lucide-react'
 import Link from 'next/link'
-import { useAppKit } from '@appkit/react'
+import { ConnectButton } from '@/components/wallet/connect-button'
 
 export function DashboardNavbar() {
-  const { open } = useAppKit()
 
   return (
     <nav className="sticky top-0 z-40 bg-background/95 backdrop-blur-sm border-b border-border">
@@ -22,12 +20,7 @@ export function DashboardNavbar() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
-            <button
-              onClick={() => open()}
-              className="px-6 py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors text-sm"
-            >
-              Connect / Account
-            </button>
+            <ConnectButton />
           </div>
         </div>
       </div>
