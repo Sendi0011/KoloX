@@ -77,14 +77,16 @@ See the Clarity contract for full implementation details.
 - **Frontend**: Next.js 16, React 19, TypeScript
 - **UI**: shadcn/ui, Tailwind CSS v4, Radix UI
 - **Blockchain**: Stacks, Clarity Smart Contracts
-- **Wallet**: AppKit (WalletConnect)
+- **Wallet Integration**: @stacks/connect, @stacks/transactions
 - **Styling**: Tailwind CSS with custom design tokens
 
-## Getting Help
+## Documentation
 
-- Read the [SETUP.md](./SETUP.md) for detailed setup instructions
-- Check [Stacks Documentation](https://docs.stacks.co)
-- Review [AppKit Documentation](https://docs.appkit.dev)
+- **[STACKS_INTEGRATION.md](./STACKS_INTEGRATION.md)** - Complete guide to @stacks/connect and @stacks/transactions usage
+- **[SETUP.md](./SETUP.md)** - Detailed setup and deployment instructions
+- **[IMPLEMENTATION.md](./IMPLEMENTATION.md)** - Integration implementation details
+- **[Stacks Documentation](https://docs.stacks.co)** - Official Stacks documentation
+- **[@stacks/connect Docs](https://docs.stacks.co/build-apps/authentication)** - Wallet authentication
 
 ## Development
 
