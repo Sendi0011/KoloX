@@ -192,7 +192,7 @@ export default function JoinKoloPage() {
         </div>
 
         {/* Create New Kolo CTA */}
-        <div className="mt-12 bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 rounded-2xl p-8 text-center">
+        <div className="mt-12 bg-linear-to-r from-primary/10 to-accent/10 border border-primary/20 rounded-2xl p-8 text-center">
           <h3 className="text-2xl font-bold text-foreground mb-2">Don't see what you're looking for?</h3>
           <p className="text-muted-foreground mb-6">Create your own Kolo and invite your community</p>
           <Link href="/app/create">

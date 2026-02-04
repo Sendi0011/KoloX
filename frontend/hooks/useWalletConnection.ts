@@ -21,11 +21,11 @@ export function useWalletConnection() {
     try {
       console.log('[v0] Opening auth dialog')
       doOpenAuth(false, () => {
-        console.log('[v0] Auth completed')
+        console.log('[kolox] Auth completed')
         setIsConnecting(false)
       })
     } catch (error) {
-      console.error('[v0] Connection error:', error)
+      console.error('[kolox] Connection error:', error)
       setIsConnecting(false)
     }
   }, [doOpenAuth])
@@ -33,7 +33,7 @@ export function useWalletConnection() {
   const disconnect = useCallback(() => {
     localStorage.removeItem('stacksAddress')
     setUserAddress(null)
-    console.log('[v0] Wallet disconnected')
+    console.log('[kolox] Wallet disconnected')
   }, [])
 
   return {

@@ -90,7 +90,7 @@ export default function KoloDetailPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">Next Payout</p>
-                <p className="text-2xl font-bold text-foreground text-sm">{kolo.nextPayoutDate}</p>
+                <p className="text-2xl font-bold text-foreground">{kolo.nextPayoutDate}</p>
               </div>
               <CheckCircle2 className="w-8 h-8 text-purple-500/30" />
             </div>
@@ -156,7 +156,7 @@ export default function KoloDetailPage() {
           <div>
             <Card className="sticky top-24 p-6 space-y-6">
               <div>
-                <h3 className="font-bold text-foreground text-sm uppercase tracking-wider text-muted-foreground mb-2">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-muted-foreground mb-2">
                   Your Position
                 </h3>
                 <p className="text-4xl font-bold text-primary">#{kolo.yourPosition}</p>
