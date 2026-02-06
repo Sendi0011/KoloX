@@ -24,3 +24,5 @@
 (define-constant MONTHLY u4320) ;; ~30 days
 (define-constant GRACE-PERIOD u144) ;; ~1 day grace period
 (define-constant MIN-CONTRIBUTION u1000000) ;; 1 STX minimum
+(define-constant MAX-MEMBERS u50) ;; Maximum members per kolo
+(define-constant MIN-MEMBERS u2) ;; Minimum members per kolo
