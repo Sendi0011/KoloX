@@ -312,6 +312,8 @@
       (total-members (get-member-count kolo-id))
       (total-payout (* amount total-members))
       (current-block block-height)
+      (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
+                          (map-get? kolo-stats kolo-id)))
     )
     ;; Validations
     (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
@@ -329,12 +331,21 @@
       (merge recipient-member { has-received-payout: true })
     )
 
+    ;; Update stats
+    (map-set kolo-stats kolo-id 
+      (merge stats { 
+        total-paid-out: (+ (get total-paid-out stats) total-payout),
+        completed-rounds: (+ (get completed-rounds stats) u1)
+      })
+    )
+
     ;; Move to next round or complete kolo
     (if (< (+ current-round u1) (get total-rounds kolo))
       (map-set kolos kolo-id (merge kolo { current-round: (+ current-round u1) }))
       (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1) }))
     )
 
+    (print { event: "payout-completed", kolo-id: kolo-id, recipient: recipient-principal, amount: total-payout, round: current-round })
     (ok true)
   )
 )
