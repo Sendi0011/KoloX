@@ -1,6 +1,9 @@
 ;; @clarity-version 2
 ;; KoloX Constants
 
+;; Version
+(define-constant CONTRACT-VERSION u1)
+
 ;; Error codes - Authorization
 (define-constant ERR-NOT-AUTHORIZED (err u100))
 
