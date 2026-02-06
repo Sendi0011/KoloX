@@ -28,6 +28,7 @@
 (define-constant WEEKLY u1008) ;; ~7 days
 (define-constant MONTHLY u4320) ;; ~30 days
 (define-constant GRACE-PERIOD u144) ;; ~1 day grace period for late payments
+(define-constant MIN-CONTRIBUTION u1000000) ;; 1 STX minimum
 
 ;; Data maps
 (define-map kolos
@@ -177,6 +178,7 @@
     )
     ;; Validations
     (asserts! (> amount u0) ERR-INVALID-PARAMS)
+    (asserts! (>= amount MIN-CONTRIBUTION) ERR-INVALID-PARAMS)
     (asserts! (>= max-members u2) ERR-INVALID-PARAMS)
     (asserts! (<= max-members u50) ERR-INVALID-PARAMS)
     (asserts! (>= start-block (+ current-block u144)) ERR-INVALID-PARAMS) ;; At least 1 day ahead
