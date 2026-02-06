@@ -80,6 +80,13 @@
   (map-get? kolo-members { kolo-id: kolo-id, user: user })
 )
 
+(define-read-only (get-member-position (kolo-id uint) (user principal))
+  (match (get-member-info kolo-id user)
+    member (some (get position member))
+    none
+  )
+)
+
 (define-read-only (get-member-count (kolo-id uint))
   (default-to u0 (map-get? member-count kolo-id))
 )
