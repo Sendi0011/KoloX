@@ -23,6 +23,7 @@
 ;; Data variables
 (define-data-var kolo-nonce uint u0)
 (define-data-var contract-paused bool false)
+(define-data-var platform-fee-percent uint u2) ;; 2% platform fee
 
 ;; Frequency constants (in blocks - Stacks block time ~10 minutes)
 (define-constant WEEKLY u1008) ;; ~7 days
@@ -150,6 +151,14 @@
     kolo (get completed kolo)
     false
   )
+)
+
+(define-read-only (get-platform-fee-percent)
+  (var-get platform-fee-percent)
+)
+
+(define-read-only (calculate-platform-fee (amount uint))
+  (/ (* amount (var-get platform-fee-percent)) u100)
 )
 
 ;; Private functions
