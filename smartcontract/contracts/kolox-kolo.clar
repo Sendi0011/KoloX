@@ -76,10 +76,24 @@
   uint
 )
 
+;; Track kolo statistics
+(define-map kolo-stats
+  uint
+  {
+    total-collected: uint,
+    total-paid-out: uint,
+    completed-rounds: uint
+  }
+)
+
 ;; Read-only functions
 
 (define-read-only (get-kolo (kolo-id uint))
   (map-get? kolos kolo-id)
+)
+
+(define-read-only (get-kolo-stats (kolo-id uint))
+  (map-get? kolo-stats kolo-id)
 )
 
 (define-read-only (get-member-info (kolo-id uint) (user principal))
@@ -189,6 +203,9 @@
     (map-set payout-order { kolo-id: kolo-id, position: u0 } tx-sender)
     (map-set member-count kolo-id u1)
 
+    ;; Initialize stats
+    (map-set kolo-stats kolo-id { total-collected: u0, total-paid-out: u0, completed-rounds: u0 })
+
     ;; Update nonce
     (var-set kolo-nonce kolo-id)
 
@@ -239,6 +256,8 @@
       (current-round (get current-round kolo))
       (amount (get amount kolo))
       (current-block block-height)
+      (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
+                          (map-get? kolo-stats kolo-id)))
     )
     ;; Validations
     (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
@@ -269,6 +288,11 @@
         total-contributions: (+ (get total-contributions member) amount),
         reputation-score: (+ (get reputation-score member) u1)
       })
+    )
+
+    ;; Update kolo stats
+    (map-set kolo-stats kolo-id 
+      (merge stats { total-collected: (+ (get total-collected stats) amount) })
     )
 
     (print { event: "contribution-made", kolo-id: kolo-id, user: tx-sender, round: current-round, amount: amount })
