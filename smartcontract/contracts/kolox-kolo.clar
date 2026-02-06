@@ -76,6 +76,13 @@
   (map-get? kolo-stats kolo-id)
 )
 
+(define-read-only (get-total-collected (kolo-id uint))
+  (match (get-kolo-stats kolo-id)
+    stats (some (get total-collected stats))
+    none
+  )
+)
+
 (define-read-only (get-member-info (kolo-id uint) (user principal))
   (map-get? kolo-members { kolo-id: kolo-id, user: user })
 )
