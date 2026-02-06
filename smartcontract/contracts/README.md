@@ -12,3 +12,12 @@ Modular smart contract system for community savings platform on Stacks blockchai
 ## Architecture
 
 The contract system is modular for maintainability and reusability.
+
+## Features
+
+- Create and manage rotating savings groups (kolos)
+- Automated contribution tracking
+- Fair payout distribution
+- Reputation system
+- Emergency pause functionality
+
