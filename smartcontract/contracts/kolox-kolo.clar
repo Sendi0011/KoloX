@@ -161,6 +161,48 @@
   (/ (* amount (var-get platform-fee-percent)) u100)
 )
 
+;; Get all active kolos count
+(define-read-only (get-total-kolos)
+  (var-get kolo-nonce)
+)
+
+;; Check if round deadline has passed
+(define-read-only (is-round-deadline-passed (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo 
+      (let
+        (
+          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
+        )
+        (>= block-height round-deadline)
+      )
+    false
+  )
+)
+
+;; Get member participation rate
+(define-read-only (get-participation-rate (kolo-id uint) (user principal))
+  (match (get-member-info kolo-id user)
+    member
+      (match (get-kolo kolo-id)
+        kolo
+          (let
+            (
+              (expected-contributions (get current-round kolo))
+              (actual-contributions (get total-contributions member))
+              (contribution-amount (get amount kolo))
+            )
+            (if (> expected-contributions u0)
+              (some (/ (* actual-contributions u100) (* expected-contributions contribution-amount)))
+              (some u0)
+            )
+          )
+        none
+      )
+    none
+  )
+)
+
 ;; Private functions
 
 (define-private (is-kolo-creator (kolo-id uint) (user principal))
