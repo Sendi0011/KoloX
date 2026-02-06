@@ -37,3 +37,4 @@
 (define-constant MIN-CONTRIBUTION u1000000) ;; 1 STX minimum
 (define-constant MAX-MEMBERS u50) ;; Maximum members per kolo
 (define-constant MIN-MEMBERS u2) ;; Minimum members per kolo
+(define-constant BLOCKS-PER-DAY u144) ;; ~10 min per block
