@@ -20,3 +20,11 @@
 (define-read-only (add-grace-period (deadline uint))
   (+ deadline u144)
 )
+
+;; Calculate percentage
+(define-read-only (calculate-percentage (value uint) (total uint))
+  (if (> total u0)
+    (some (/ (* value u100) total))
+    none
+  )
+)
