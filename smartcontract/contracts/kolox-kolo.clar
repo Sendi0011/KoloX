@@ -2,34 +2,10 @@
 ;; KoloX - Community Savings Platform on Stacks
 ;; A trustless rotating savings and credit association (ROSCA) contract
 
-;; Error codes
-(define-constant ERR-NOT-AUTHORIZED (err u100))
-(define-constant ERR-KOLO-NOT-FOUND (err u101))
-(define-constant ERR-KOLO-FULL (err u102))
-(define-constant ERR-ALREADY-MEMBER (err u103))
-(define-constant ERR-NOT-MEMBER (err u104))
-(define-constant ERR-ALREADY-PAID (err u105))
-(define-constant ERR-WRONG-AMOUNT (err u106))
-(define-constant ERR-NOT-STARTED (err u107))
-(define-constant ERR-PAYOUT-NOT-READY (err u108))
-(define-constant ERR-NOT-YOUR-TURN (err u109))
-(define-constant ERR-KOLO-NOT-ACTIVE (err u110))
-(define-constant ERR-INVALID-PARAMS (err u111))
-(define-constant ERR-CANNOT-JOIN (err u112))
-(define-constant ERR-PAUSED (err u113))
-(define-constant ERR-ALREADY-WITHDRAWN (err u114))
-(define-constant ERR-KOLO-STARTED (err u115))
-
 ;; Data variables
 (define-data-var kolo-nonce uint u0)
 (define-data-var contract-paused bool false)
-(define-data-var platform-fee-percent uint u2) ;; 2% platform fee
-
-;; Frequency constants (in blocks - Stacks block time ~10 minutes)
-(define-constant WEEKLY u1008) ;; ~7 days
-(define-constant MONTHLY u4320) ;; ~30 days
-(define-constant GRACE-PERIOD u144) ;; ~1 day grace period for late payments
-(define-constant MIN-CONTRIBUTION u1000000) ;; 1 STX minimum
+(define-data-var platform-fee-percent uint u2)
 
 ;; Data maps
 (define-map kolos
@@ -77,12 +53,8 @@
   principal
 )
 
-(define-map member-count
-  uint
-  uint
-)
+(define-map member-count uint uint)
 
-;; Track kolo statistics
 (define-map kolo-stats
   uint
   {
@@ -93,7 +65,6 @@
 )
 
 ;; Read-only functions
-
 (define-read-only (get-kolo (kolo-id uint))
   (map-get? kolos kolo-id)
 )
@@ -161,12 +132,10 @@
   (/ (* amount (var-get platform-fee-percent)) u100)
 )
 
-;; Get all active kolos count
 (define-read-only (get-total-kolos)
   (var-get kolo-nonce)
 )
 
-;; Check if round deadline has passed
 (define-read-only (is-round-deadline-passed (kolo-id uint))
   (match (get-kolo kolo-id)
     kolo 
@@ -180,7 +149,6 @@
   )
 )
 
-;; Get member participation rate
 (define-read-only (get-participation-rate (kolo-id uint) (user principal))
   (match (get-member-info kolo-id user)
     member
@@ -203,7 +171,26 @@
   )
 )
 
-;; Private functions
+(define-read-only (get-next-payout-block (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
+    none
+  )
+)
+
+(define-read-only (is-within-grace-period (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo 
+      (let
+        (
+          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
+          (grace-deadline (+ round-deadline (unwrap-panic (contract-call? .constants GRACE-PERIOD))))
+        )
+        (< block-height grace-deadline)
+      )
+    false
+  )
+)
 
 (define-private (is-kolo-creator (kolo-id uint) (user principal))
   (match (get-kolo kolo-id)
@@ -213,8 +200,6 @@
 )
 
 ;; Public functions
-
-;; Create a new Kolo
 (define-public (create-kolo 
     (name (string-ascii 50))
     (amount uint)
@@ -227,15 +212,15 @@
       (kolo-id (+ (var-get kolo-nonce) u1))
       (current-block block-height)
     )
-    ;; Validations
-    (asserts! (> amount u0) ERR-INVALID-PARAMS)
-    (asserts! (>= amount MIN-CONTRIBUTION) ERR-INVALID-PARAMS)
-    (asserts! (>= max-members u2) ERR-INVALID-PARAMS)
-    (asserts! (<= max-members u50) ERR-INVALID-PARAMS)
-    (asserts! (>= start-block (+ current-block u144)) ERR-INVALID-PARAMS) ;; At least 1 day ahead
-    (asserts! (or (is-eq frequency WEEKLY) (is-eq frequency MONTHLY)) ERR-INVALID-PARAMS)
+    (asserts! (> amount u0) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (>= amount (unwrap-panic (contract-call? .constants MIN-CONTRIBUTION))) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (>= max-members u2) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (<= max-members u50) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (>= start-block (+ current-block u144)) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (or (is-eq frequency (unwrap-panic (contract-call? .constants WEEKLY))) 
+                  (is-eq frequency (unwrap-panic (contract-call? .constants MONTHLY)))) 
+              (contract-call? .constants ERR-INVALID-PARAMS))
 
-    ;; Create Kolo
     (map-set kolos kolo-id
       {
         creator: tx-sender,
@@ -253,7 +238,6 @@
       }
     )
 
-    ;; Creator automatically joins at position 0
     (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
       {
         joined-at: current-block,
@@ -268,33 +252,26 @@
 
     (map-set payout-order { kolo-id: kolo-id, position: u0 } tx-sender)
     (map-set member-count kolo-id u1)
-
-    ;; Initialize stats
     (map-set kolo-stats kolo-id { total-collected: u0, total-paid-out: u0, completed-rounds: u0 })
-
-    ;; Update nonce
     (var-set kolo-nonce kolo-id)
 
     (ok kolo-id)
   )
 )
 
-;; Join an existing Kolo
 (define-public (join-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-members (get-member-count kolo-id))
       (current-block block-height)
     )
-    ;; Validations
-    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
-    (asserts! (not (get paused kolo)) ERR-PAUSED)
-    (asserts! (< current-block (get start-block kolo)) ERR-CANNOT-JOIN)
-    (asserts! (< current-members (get max-members kolo)) ERR-KOLO-FULL)
-    (asserts! (not (is-member kolo-id tx-sender)) ERR-ALREADY-MEMBER)
+    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
+    (asserts! (not (get paused kolo)) (contract-call? .constants ERR-PAUSED))
+    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-CANNOT-JOIN))
+    (asserts! (< current-members (get max-members kolo)) (contract-call? .constants ERR-KOLO-FULL))
+    (asserts! (not (is-member kolo-id tx-sender)) (contract-call? .constants ERR-ALREADY-MEMBER))
 
-    ;; Add member
     (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
       {
         joined-at: current-block,
@@ -314,32 +291,24 @@
   )
 )
 
-;; Make a contribution for the current round
 (define-public (contribute (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
-      (member (unwrap! (get-member-info kolo-id tx-sender) ERR-NOT-MEMBER))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-round (get current-round kolo))
       (amount (get amount kolo))
       (current-block block-height)
       (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
                           (map-get? kolo-stats kolo-id)))
     )
-    ;; Validations
-    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
-    (asserts! (not (get paused kolo)) ERR-PAUSED)
-    (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
-    (asserts! (not (has-paid-current-round kolo-id tx-sender)) ERR-ALREADY-PAID)
+    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
+    (asserts! (not (get paused kolo)) (contract-call? .constants ERR-PAUSED))
+    (asserts! (>= current-block (get start-block kolo)) (contract-call? .constants ERR-NOT-STARTED))
+    (asserts! (not (has-paid-current-round kolo-id tx-sender)) (contract-call? .constants ERR-ALREADY-PAID))
 
-    ;; Transfer STX from user to contract
-    (try!
-      (as-contract
-        (stx-transfer? amount tx-sender tx-sender)
-      )
-    )
+    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
 
-    ;; Record contribution
     (map-set round-contributions 
       { kolo-id: kolo-id, round: current-round, user: tx-sender }
       {
@@ -349,7 +318,6 @@
       }
     )
 
-    ;; Update member stats
     (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
       (merge member { 
         total-contributions: (+ (get total-contributions member) amount),
@@ -357,7 +325,6 @@
       })
     )
 
-    ;; Update kolo stats
     (map-set kolo-stats kolo-id 
       (merge stats { total-collected: (+ (get total-collected stats) amount) })
     )
@@ -367,14 +334,13 @@
   )
 )
 
-;; Trigger payout for current round
 (define-public (trigger-payout (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-round (get current-round kolo))
-      (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) ERR-NOT-YOUR-TURN))
-      (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) ERR-NOT-MEMBER))
+      (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) (contract-call? .constants ERR-NOT-YOUR-TURN)))
+      (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) (contract-call? .constants ERR-NOT-MEMBER)))
       (amount (get amount kolo))
       (total-members (get-member-count kolo-id))
       (total-payout (* amount total-members))
@@ -382,23 +348,17 @@
       (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
                           (map-get? kolo-stats kolo-id)))
     )
-    ;; Validations
-    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
-    (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
-    (asserts! (not (get has-received-payout recipient-member)) ERR-ALREADY-PAID)
+    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
+    (asserts! (>= current-block (get start-block kolo)) (contract-call? .constants ERR-NOT-STARTED))
+    (asserts! (not (get has-received-payout recipient-member)) (contract-call? .constants ERR-ALREADY-PAID))
+    (asserts! (>= current-block (+ (get start-block kolo) (* (get frequency kolo) current-round))) (contract-call? .constants ERR-PAYOUT-NOT-READY))
 
-    ;; Check if all members have paid (simplified - production would need more checks)
-    (asserts! (>= current-block (+ (get start-block kolo) (* (get frequency kolo) current-round))) ERR-PAYOUT-NOT-READY)
-
-    ;; Transfer payout to recipient
     (try! (as-contract (stx-transfer? total-payout tx-sender recipient-principal)))
 
-    ;; Update recipient's payout status
     (map-set kolo-members { kolo-id: kolo-id, user: recipient-principal }
       (merge recipient-member { has-received-payout: true })
     )
 
-    ;; Update stats
     (map-set kolo-stats kolo-id 
       (merge stats { 
         total-paid-out: (+ (get total-paid-out stats) total-payout),
@@ -406,7 +366,6 @@
       })
     )
 
-    ;; Move to next round or complete kolo
     (if (< (+ current-round u1) (get total-rounds kolo))
       (map-set kolos kolo-id (merge kolo { current-round: (+ current-round u1) }))
       (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1), completed: true }))
@@ -417,79 +376,44 @@
   )
 )
 
-;; Emergency function: Creator can cancel before start (refunds all)
 (define-public (cancel-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-block block-height)
     )
-    ;; Only creator can cancel
-    (asserts! (is-kolo-creator kolo-id tx-sender) ERR-NOT-AUTHORIZED)
-    ;; Can only cancel before start
-    (asserts! (< current-block (get start-block kolo)) ERR-CANNOT-JOIN)
-    ;; Must be active
-    (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
+    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-CANNOT-JOIN))
+    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
 
-    ;; Deactivate kolo
     (map-set kolos kolo-id (merge kolo { active: false }))
 
     (ok true)
   )
 )
 
-;; Read-only helper: Get next payout block
-(define-read-only (get-next-payout-block (kolo-id uint))
-  (match (get-kolo kolo-id)
-    kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-    none
-  )
-)
-
-;; Check if payment is within grace period
-(define-read-only (is-within-grace-period (kolo-id uint))
-  (match (get-kolo kolo-id)
-    kolo 
-      (let
-        (
-          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-          (grace-deadline (+ round-deadline GRACE-PERIOD))
-        )
-        (< block-height grace-deadline)
-      )
-    false
-  )
-)
-
-;; Initialize contract (optional, for setup)
-(begin
-  (var-set kolo-nonce u0)
-)
-
-;; Emergency pause/unpause (creator only)
 (define-public (toggle-kolo-pause (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
     )
-    (asserts! (is-kolo-creator kolo-id tx-sender) ERR-NOT-AUTHORIZED)
+    (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
     (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
     (print { event: "kolo-pause-toggled", kolo-id: kolo-id, paused: (not (get paused kolo)) })
     (ok true)
   )
 )
 
-;; Member withdrawal before kolo starts
 (define-public (withdraw-from-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
-      (member (unwrap! (get-member-info kolo-id tx-sender) ERR-NOT-MEMBER))
+      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-block block-height)
     )
-    (asserts! (< current-block (get start-block kolo)) ERR-KOLO-STARTED)
-    (asserts! (not (get withdrawn member)) ERR-ALREADY-WITHDRAWN)
-    (asserts! (not (is-kolo-creator kolo-id tx-sender)) ERR-NOT-AUTHORIZED)
+    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-KOLO-STARTED))
+    (asserts! (not (get withdrawn member)) (contract-call? .constants ERR-ALREADY-WITHDRAWN))
+    (asserts! (not (is-kolo-creator kolo-id tx-sender)) (contract-call? .constants ERR-NOT-AUTHORIZED))
     
     (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
       (merge member { withdrawn: true })
@@ -498,4 +422,8 @@
     (print { event: "member-withdrawn", kolo-id: kolo-id, user: tx-sender })
     (ok true)
   )
+)
+
+(begin
+  (var-set kolo-nonce u0)
 )
