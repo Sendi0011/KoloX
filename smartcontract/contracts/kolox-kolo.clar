@@ -2,6 +2,9 @@
 ;; KoloX - Community Savings Platform on Stacks
 ;; A trustless rotating savings and credit association (ROSCA) contract
 
+;; Contract version
+(define-constant CONTRACT-VERSION u1)
+
 ;; Data variables
 (define-data-var kolo-nonce uint u0)
 (define-data-var contract-paused bool false)
