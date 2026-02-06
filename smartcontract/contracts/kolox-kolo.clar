@@ -25,6 +25,7 @@
 ;; Frequency constants (in blocks - Stacks block time ~10 minutes)
 (define-constant WEEKLY u1008) ;; ~7 days
 (define-constant MONTHLY u4320) ;; ~30 days
+(define-constant GRACE-PERIOD u144) ;; ~1 day grace period for late payments
 
 ;; Data maps
 (define-map kolos
@@ -340,6 +341,21 @@
   (match (get-kolo kolo-id)
     kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
     none
+  )
+)
+
+;; Check if payment is within grace period
+(define-read-only (is-within-grace-period (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo 
+      (let
+        (
+          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
+          (grace-deadline (+ round-deadline GRACE-PERIOD))
+        )
+        (< block-height grace-deadline)
+      )
+    false
   )
 )
 
