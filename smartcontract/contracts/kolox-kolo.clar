@@ -51,7 +51,8 @@
     position: uint,
     total-contributions: uint,
     missed-payments: uint,
-    has-received-payout: bool
+    has-received-payout: bool,
+    reputation-score: uint
   }
 )
 
@@ -179,7 +180,8 @@
         position: u0,
         total-contributions: u0,
         missed-payments: u0,
-        has-received-payout: false
+        has-received-payout: false,
+        reputation-score: u100
       }
     )
 
@@ -215,7 +217,8 @@
         position: current-members,
         total-contributions: u0,
         missed-payments: u0,
-        has-received-payout: false
+        has-received-payout: false,
+        reputation-score: u100
       }
     )
 
@@ -261,9 +264,13 @@
 
     ;; Update member stats
     (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
-      (merge member { total-contributions: (+ (get total-contributions member) amount) })
+      (merge member { 
+        total-contributions: (+ (get total-contributions member) amount),
+        reputation-score: (+ (get reputation-score member) u1)
+      })
     )
 
+    (print { event: "contribution-made", kolo-id: kolo-id, user: tx-sender, round: current-round, amount: amount })
     (ok true)
   )
 )
