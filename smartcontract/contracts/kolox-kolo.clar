@@ -130,6 +130,13 @@
   (is-some (get-member-info kolo-id user))
 )
 
+(define-read-only (is-kolo-active (kolo-id uint))
+  (match (map-get? kolos kolo-id)
+    kolo (and (get active kolo) (not (get paused kolo)))
+    false
+  )
+)
+
 (define-read-only (get-round-contribution (kolo-id uint) (round uint) (user principal))
   (map-get? round-contributions { kolo-id: kolo-id, round: round, user: user })
 )
