@@ -66,7 +66,7 @@
 
 ;; Read-only functions
 (define-read-only (get-kolo (kolo-id uint))
-  (map-get? kolos kolo-id)
+  (ok (map-get? kolos kolo-id))
 )
 
 (define-read-only (get-kolo-stats (kolo-id uint))
@@ -88,7 +88,7 @@
 (define-read-only (has-paid-current-round (kolo-id uint) (user principal))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) false))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) false))
       (current-round (get current-round kolo))
     )
     (default-to false 
@@ -102,7 +102,7 @@
 (define-read-only (get-current-round-recipient (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) none))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) none))
       (current-round (get current-round kolo))
     )
     (get-payout-recipient kolo-id current-round)
@@ -118,7 +118,7 @@
 )
 
 (define-read-only (is-kolo-completed (kolo-id uint))
-  (match (get-kolo kolo-id)
+  (match (map-get? kolos kolo-id)
     kolo (get completed kolo)
     false
   )
@@ -137,7 +137,7 @@
 )
 
 (define-read-only (is-round-deadline-passed (kolo-id uint))
-  (match (get-kolo kolo-id)
+  (match (map-get? kolos kolo-id)
     kolo 
       (let
         (
@@ -152,7 +152,7 @@
 (define-read-only (get-participation-rate (kolo-id uint) (user principal))
   (match (get-member-info kolo-id user)
     member
-      (match (get-kolo kolo-id)
+      (match (map-get? kolos kolo-id)
         kolo
           (let
             (
@@ -172,14 +172,14 @@
 )
 
 (define-read-only (get-next-payout-block (kolo-id uint))
-  (match (get-kolo kolo-id)
+  (match (map-get? kolos kolo-id)
     kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
     none
   )
 )
 
 (define-read-only (is-within-grace-period (kolo-id uint))
-  (match (get-kolo kolo-id)
+  (match (map-get? kolos kolo-id)
     kolo 
       (let
         (
@@ -193,7 +193,7 @@
 )
 
 (define-private (is-kolo-creator (kolo-id uint) (user principal))
-  (match (get-kolo kolo-id)
+  (match (map-get? kolos kolo-id)
     kolo (is-eq (get creator kolo) user)
     false
   )
@@ -262,7 +262,7 @@
 (define-public (join-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-members (get-member-count kolo-id))
       (current-block block-height)
     )
@@ -294,7 +294,7 @@
 (define-public (contribute (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-round (get current-round kolo))
       (amount (get amount kolo))
@@ -337,7 +337,7 @@
 (define-public (trigger-payout (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-round (get current-round kolo))
       (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) (contract-call? .constants ERR-NOT-YOUR-TURN)))
       (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) (contract-call? .constants ERR-NOT-MEMBER)))
@@ -379,7 +379,7 @@
 (define-public (cancel-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-block block-height)
     )
     (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
@@ -395,7 +395,7 @@
 (define-public (toggle-kolo-pause (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
     )
     (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
     (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
@@ -407,7 +407,7 @@
 (define-public (withdraw-from-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (get-kolo kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-block block-height)
     )
