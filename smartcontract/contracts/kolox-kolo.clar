@@ -139,6 +139,10 @@
   (var-get kolo-nonce)
 )
 
+(define-read-only (get-contract-version)
+  CONTRACT-VERSION
+)
+
 (define-read-only (is-round-deadline-passed (kolo-id uint))
   (match (map-get? kolos kolo-id)
     kolo 
