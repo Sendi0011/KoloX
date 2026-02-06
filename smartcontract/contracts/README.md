@@ -21,3 +21,11 @@ The contract system is modular for maintainability and reusability.
 - Reputation system
 - Emergency pause functionality
 
+## Constants
+
+- Weekly frequency: ~7 days (1008 blocks)
+- Monthly frequency: ~30 days (4320 blocks)
+- Minimum contribution: 1 STX
+- Member limits: 2-50 per kolo
+
+
