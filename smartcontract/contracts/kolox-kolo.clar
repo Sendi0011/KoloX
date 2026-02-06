@@ -43,7 +43,8 @@
     total-rounds: uint,
     active: bool,
     created-at: uint,
-    paused: bool
+    paused: bool,
+    completed: bool
   }
 )
 
@@ -143,6 +144,13 @@
   (map-get? round-contributions { kolo-id: kolo-id, round: round, user: user })
 )
 
+(define-read-only (is-kolo-completed (kolo-id uint))
+  (match (get-kolo kolo-id)
+    kolo (get completed kolo)
+    false
+  )
+)
+
 ;; Private functions
 
 (define-private (is-kolo-creator (kolo-id uint) (user principal))
@@ -187,7 +195,8 @@
         total-rounds: max-members,
         active: true,
         created-at: current-block,
-        paused: false
+        paused: false,
+        completed: false
       }
     )
 
@@ -347,7 +356,7 @@
     ;; Move to next round or complete kolo
     (if (< (+ current-round u1) (get total-rounds kolo))
       (map-set kolos kolo-id (merge kolo { current-round: (+ current-round u1) }))
-      (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1) }))
+      (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1), completed: true }))
     )
 
     (print { event: "payout-completed", kolo-id: kolo-id, recipient: recipient-principal, amount: total-payout, round: current-round })
