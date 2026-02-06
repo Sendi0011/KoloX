@@ -17,6 +17,8 @@
 (define-constant ERR-INVALID-PARAMS (err u111))
 (define-constant ERR-CANNOT-JOIN (err u112))
 (define-constant ERR-PAUSED (err u113))
+(define-constant ERR-ALREADY-WITHDRAWN (err u114))
+(define-constant ERR-KOLO-STARTED (err u115))
 
 ;; Data variables
 (define-data-var kolo-nonce uint u0)
@@ -53,7 +55,8 @@
     total-contributions: uint,
     missed-payments: uint,
     has-received-payout: bool,
-    reputation-score: uint
+    reputation-score: uint,
+    withdrawn: bool
   }
 )
 
@@ -196,7 +199,8 @@
         total-contributions: u0,
         missed-payments: u0,
         has-received-payout: false,
-        reputation-score: u100
+        reputation-score: u100,
+        withdrawn: false
       }
     )
 
@@ -236,7 +240,8 @@
         total-contributions: u0,
         missed-payments: u0,
         has-received-payout: false,
-        reputation-score: u100
+        reputation-score: u100,
+        withdrawn: false
       }
     )
 
@@ -408,6 +413,27 @@
     (asserts! (is-kolo-creator kolo-id tx-sender) ERR-NOT-AUTHORIZED)
     (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
     (print { event: "kolo-pause-toggled", kolo-id: kolo-id, paused: (not (get paused kolo)) })
+    (ok true)
+  )
+)
+
+;; Member withdrawal before kolo starts
+(define-public (withdraw-from-kolo (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+      (member (unwrap! (get-member-info kolo-id tx-sender) ERR-NOT-MEMBER))
+      (current-block block-height)
+    )
+    (asserts! (< current-block (get start-block kolo)) ERR-KOLO-STARTED)
+    (asserts! (not (get withdrawn member)) ERR-ALREADY-WITHDRAWN)
+    (asserts! (not (is-kolo-creator kolo-id tx-sender)) ERR-NOT-AUTHORIZED)
+    
+    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+      (merge member { withdrawn: true })
+    )
+    
+    (print { event: "member-withdrawn", kolo-id: kolo-id, user: tx-sender })
     (ok true)
   )
 )
