@@ -16,9 +16,11 @@
 (define-constant ERR-KOLO-NOT-ACTIVE (err u110))
 (define-constant ERR-INVALID-PARAMS (err u111))
 (define-constant ERR-CANNOT-JOIN (err u112))
+(define-constant ERR-PAUSED (err u113))
 
 ;; Data variables
 (define-data-var kolo-nonce uint u0)
+(define-data-var contract-paused bool false)
 
 ;; Frequency constants (in blocks - Stacks block time ~10 minutes)
 (define-constant WEEKLY u1008) ;; ~7 days
@@ -37,7 +39,8 @@
     start-block: uint,
     total-rounds: uint,
     active: bool,
-    created-at: uint
+    created-at: uint,
+    paused: bool
   }
 )
 
@@ -164,7 +167,8 @@
         start-block: start-block,
         total-rounds: max-members,
         active: true,
-        created-at: current-block
+        created-at: current-block,
+        paused: false
       }
     )
 
@@ -199,6 +203,7 @@
     )
     ;; Validations
     (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (not (get paused kolo)) ERR-PAUSED)
     (asserts! (< current-block (get start-block kolo)) ERR-CANNOT-JOIN)
     (asserts! (< current-members (get max-members kolo)) ERR-KOLO-FULL)
     (asserts! (not (is-member kolo-id tx-sender)) ERR-ALREADY-MEMBER)
@@ -233,6 +238,7 @@
     )
     ;; Validations
     (asserts! (get active kolo) ERR-KOLO-NOT-ACTIVE)
+    (asserts! (not (get paused kolo)) ERR-PAUSED)
     (asserts! (>= current-block (get start-block kolo)) ERR-NOT-STARTED)
     (asserts! (not (has-paid-current-round kolo-id tx-sender)) ERR-ALREADY-PAID)
 
@@ -333,4 +339,17 @@
 ;; Initialize contract (optional, for setup)
 (begin
   (var-set kolo-nonce u0)
+)
+
+;; Emergency pause/unpause (creator only)
+(define-public (toggle-kolo-pause (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (get-kolo kolo-id) ERR-KOLO-NOT-FOUND))
+    )
+    (asserts! (is-kolo-creator kolo-id tx-sender) ERR-NOT-AUTHORIZED)
+    (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
+    (print { event: "kolo-pause-toggled", kolo-id: kolo-id, paused: (not (get paused kolo)) })
+    (ok true)
+  )
 )
