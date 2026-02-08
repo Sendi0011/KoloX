@@ -1,7 +1,13 @@
 'use client'
 
-import React, { ReactNode, createContext, useContext, useState, useEffect } from 'react'
-import { StacksProvider } from '@stacks/connect'
+import React, {
+  ReactNode,
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from 'react'
+import { StacksProvider } from '@stacks/connect-react'
 
 interface StacksContextType {
   isConnected: boolean
@@ -15,8 +21,11 @@ export function AppKitProvider({ children }: { children: ReactNode }) {
   const [userAddress, setUserAddress] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check if user was previously connected
-    const storedAddress = typeof window !== 'undefined' ? localStorage.getItem('stacksAddress') : null
+    const storedAddress =
+      typeof window !== 'undefined'
+        ? localStorage.getItem('stacksAddress')
+        : null
+
     if (storedAddress) {
       setUserAddress(storedAddress)
       setIsConnected(true)
@@ -25,10 +34,12 @@ export function AppKitProvider({ children }: { children: ReactNode }) {
 
   return (
     <StacksContext.Provider value={{ isConnected, userAddress }}>
-      <StacksProvider appDetails={{
-        name: 'KoloX',
-        icon: 'https://avatars.githubusercontent.com/u/37784886',
-      }}>
+      <StacksProvider
+        appDetails={{
+          name: 'KoloX',
+          icon: 'https://avatars.githubusercontent.com/u/37784886',
+        }}
+      >
         {children}
       </StacksProvider>
     </StacksContext.Provider>
