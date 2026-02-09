@@ -1,16 +1,23 @@
 [project]
-name = 'smartcontract'
-description = ''
+name = "smartcontract"
+description = ""
 authors = []
 telemetry = true
-cache_dir = './.cache'
+cache_dir = "./.cache"
 requirements = []
+
 [contracts.kolox-kolo]
-path = 'contracts/kolox-kolo.clar'
+path = "contracts/kolox-kolo.clar"
 clarity_version = 2
-epoch = 'latest'
+epoch = "latest"
+
+[contracts.constants]
+path = "contracts/constants.clar"
+clarity_version = 2
+epoch = "latest"
+
 [repl.analysis]
-passes = ['check_checker']
+passes = ["check_checker"]
 
 [repl.analysis.lints]
 
@@ -22,4 +29,4 @@ callee_filter = false
 
 [repl.remote_data]
 enabled = false
-api_url = 'https://api.hiro.so'
+api_url = "https://api.hiro.so"
