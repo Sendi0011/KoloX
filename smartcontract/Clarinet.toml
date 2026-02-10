@@ -1,25 +1,8 @@
 [project]
-name = 'smartcontract'
-description = ''
-authors = []
-telemetry = true
-cache_dir = './.cache'
-requirements = []
+name = "smartcontract"
+
+[contracts.constants]
+path = "contracts/constants.clar"
+
 [contracts.kolox-kolo]
-path = 'contracts/kolox-kolo.clar'
-clarity_version = 2
-epoch = 'latest'
-[repl.analysis]
-passes = ['check_checker']
-
-[repl.analysis.lints]
-
-[repl.analysis.check_checker]
-strict = false
-trusted_sender = false
-trusted_caller = false
-callee_filter = false
-
-[repl.remote_data]
-enabled = false
-api_url = 'https://api.hiro.so'
+path = "contracts/kolox-kolo.clar"

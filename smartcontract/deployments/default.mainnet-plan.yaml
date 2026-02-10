@@ -9,9 +9,16 @@ plan:
     - id: 0
       transactions:
         - contract-publish:
+            contract-name: constants
+            expected-sender: SP1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRCBGD7R
+            cost: 4861096
+            path: contracts/constants.clar
+            anchor-block-only: true
+            clarity-version: 2
+        - contract-publish:
             contract-name: kolox-kolo
-            expected-sender: SPCHTPYB58PW0W8N44PPES2KFGHCZXFWZVTEKB04
-            cost: 93790
+            expected-sender: SP1PQHQKV0RJXZFY1DGX8MNSNYVE3VGZJSRCBGD7R
+            cost: 4872824
             path: contracts/kolox-kolo.clar
             anchor-block-only: true
             clarity-version: 2
