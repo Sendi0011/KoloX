@@ -1,0 +1,8 @@
+[project]
+name = "smartcontract"
+
+[contracts.constants]
+path = "contracts/constants.clar"
+
+[contracts.kolox-kolo]
+path = "contracts/kolox-kolo.clar"
