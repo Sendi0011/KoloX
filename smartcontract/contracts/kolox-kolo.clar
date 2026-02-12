@@ -103,26 +103,21 @@
 )
 
 (define-read-only (has-paid-current-round (kolo-id uint) (user principal))
-  (let
-    (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) false))
-      (current-round (get current-round kolo))
-    )
-    (default-to false 
-      (get paid (map-get? round-contributions 
-        { kolo-id: kolo-id, round: current-round, user: user }
-      ))
-    )
+  (match (map-get? kolos kolo-id)
+    kolo
+      (default-to false 
+        (get paid (map-get? round-contributions 
+          { kolo-id: kolo-id, round: (get current-round kolo), user: user }
+        ))
+      )
+    false
   )
 )
 
 (define-read-only (get-current-round-recipient (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) none))
-      (current-round (get current-round kolo))
-    )
-    (get-payout-recipient kolo-id current-round)
+  (match (map-get? kolos kolo-id)
+    kolo (get-payout-recipient kolo-id (get current-round kolo))
+    none
   )
 )
 
@@ -212,7 +207,7 @@
       (let
         (
           (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-          (grace-deadline (+ round-deadline (unwrap-panic (contract-call? .constants GRACE-PERIOD))))
+          (grace-deadline (+ round-deadline (contract-call? .constants GRACE-PERIOD)))
         )
         (< block-height grace-deadline)
       )
@@ -241,12 +236,12 @@
       (current-block block-height)
     )
     (asserts! (> amount u0) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (>= amount (unwrap-panic (contract-call? .constants MIN-CONTRIBUTION))) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (>= max-members (unwrap-panic (contract-call? .constants MIN-MEMBERS))) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (<= max-members (unwrap-panic (contract-call? .constants MAX-MEMBERS))) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (>= amount (contract-call? .constants MIN-CONTRIBUTION)) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (>= max-members (contract-call? .constants MIN-MEMBERS)) (contract-call? .constants ERR-INVALID-PARAMS))
+    (asserts! (<= max-members (contract-call? .constants MAX-MEMBERS)) (contract-call? .constants ERR-INVALID-PARAMS))
     (asserts! (>= start-block (+ current-block u144)) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (or (is-eq frequency (unwrap-panic (contract-call? .constants WEEKLY))) 
-                  (is-eq frequency (unwrap-panic (contract-call? .constants MONTHLY)))) 
+    (asserts! (or (is-eq frequency (contract-call? .constants WEEKLY)) 
+                  (is-eq frequency (contract-call? .constants MONTHLY))) 
               (contract-call? .constants ERR-INVALID-PARAMS))
 
     (map-set kolos kolo-id
@@ -290,7 +285,7 @@
 (define-public (join-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-members (get-member-count kolo-id))
       (current-block block-height)
     )
@@ -322,7 +317,7 @@
 (define-public (contribute (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-round (get current-round kolo))
       (amount (get amount kolo))
@@ -365,7 +360,7 @@
 (define-public (trigger-payout (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-round (get current-round kolo))
       (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) (contract-call? .constants ERR-NOT-YOUR-TURN)))
       (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) (contract-call? .constants ERR-NOT-MEMBER)))
@@ -407,7 +402,7 @@
 (define-public (cancel-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (current-block block-height)
     )
     (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
@@ -423,7 +418,7 @@
 (define-public (toggle-kolo-pause (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
     )
     (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
     (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
@@ -435,7 +430,7 @@
 (define-public (withdraw-from-kolo (kolo-id uint))
   (let
     (
-      (kolo (unwrap! (ok (map-get? kolos kolo-id)) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
       (current-block block-height)
     )

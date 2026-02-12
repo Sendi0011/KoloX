@@ -9,7 +9,6 @@ export default function Landing() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted">
       <Navbar />
       
-      {/* Hero Section */}
       <section className="relative overflow-hidden pt-24 pb-32 px-4 sm:px-6 lg:px-8">
         <div className="absolute inset-0 opacity-20">
           <div className="absolute top-20 right-0 w-96 h-96 bg-primary rounded-full blur-3xl" />
@@ -50,7 +49,6 @@ export default function Landing() {
             </div>
           </div>
 
-          {/* Hero Card Visual */}
           <div className="relative h-96 rounded-2xl bg-gradient-to-br from-primary/5 to-accent/5 border border-border overflow-hidden">
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="text-center">
