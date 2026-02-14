@@ -20,6 +20,8 @@
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
     (ft-mint? token amount recipient)))
 
+;; Read-only functions
+
 (define-read-only (get-balance (account principal))
   (ok (ft-get-balance token account)))
 
