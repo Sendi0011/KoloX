@@ -25,6 +25,7 @@
 
 ;; Read-only functions
 
+;; Get token balance for an account
 (define-read-only (get-balance (account principal))
   (ok (ft-get-balance token account)))
 
