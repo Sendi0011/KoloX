@@ -33,5 +33,6 @@
 (define-read-only (get-total-supply)
   (ok (ft-get-supply token)))
 
+;; Burn tokens from sender's balance
 (define-public (burn (amount uint))
   (ft-burn? token amount tx-sender))
