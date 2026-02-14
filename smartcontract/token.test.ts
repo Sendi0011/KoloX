@@ -16,7 +16,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-    name: "Can transfer tokens",
+    name: "Can transfer tokens between wallets",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const wallet1 = accounts.get('wallet_1')!;
