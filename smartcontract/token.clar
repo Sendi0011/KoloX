@@ -8,6 +8,8 @@
 (define-constant err-owner-only (err u100))
 (define-constant err-insufficient-balance (err u101))
 
+;; Public functions
+
 (define-public (transfer (amount uint) (sender principal) (recipient principal))
   (begin
     (asserts! (is-eq tx-sender sender) err-owner-only)
