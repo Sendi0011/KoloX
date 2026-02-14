@@ -11,6 +11,7 @@
 
 ;; Public functions
 
+;; Transfer tokens from sender to recipient
 (define-public (transfer (amount uint) (sender principal) (recipient principal))
   (begin
     (asserts! (is-eq tx-sender sender) err-owner-only)
