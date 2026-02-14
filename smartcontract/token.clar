@@ -29,6 +29,7 @@
 (define-read-only (get-balance (account principal))
   (ok (ft-get-balance token account)))
 
+;; Get total token supply
 (define-read-only (get-total-supply)
   (ok (ft-get-supply token)))
 
