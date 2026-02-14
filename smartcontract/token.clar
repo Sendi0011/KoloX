@@ -17,6 +17,7 @@
     (asserts! (is-eq tx-sender sender) err-owner-only)
     (ft-transfer? token amount sender recipient)))
 
+;; Mint new tokens (owner only)
 (define-public (mint (amount uint) (recipient principal))
   (begin
     (asserts! (is-eq tx-sender contract-owner) err-owner-only)
