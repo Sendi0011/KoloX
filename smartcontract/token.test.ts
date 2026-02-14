@@ -47,7 +47,7 @@ Clarinet.test({
 });
 
 Clarinet.test({
-    name: "Can burn tokens",
+    name: "Can burn tokens from balance",
     async fn(chain: Chain, accounts: Map<string, Account>) {
         const deployer = accounts.get('deployer')!;
         const wallet1 = accounts.get('wallet_1')!;
