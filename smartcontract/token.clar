@@ -1,4 +1,5 @@
 ;; ERC20 Token Contract
+;; Implements basic fungible token functionality
 
 (define-fungible-token token)
 
