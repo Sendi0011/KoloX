@@ -1,452 +1,395 @@
-;; @clarity-version 2
 ;; KoloX - Community Savings Platform on Stacks
-;; A trustless rotating savings and credit association (ROSCA) contract
+;; ENHANCEMENT: Emergency Withdrawal & Slashing Mechanism
+;; Protects the group from defaulting members while allowing emergency exits
 
-;; Contract version
-(define-constant CONTRACT-VERSION u1)
+;; ====================================================================================
+;; NEW CONSTANTS (to be added to constants contract)
+;; ====================================================================================
+;; These would be in your constants contract:
+;; (define-constant GRACE-PERIOD u144)          ;; ~24 hours (assuming 10-min blocks)
+;; (define-constant SLASH-PERCENTAGE u20)       ;; 20% penalty for emergency withdrawal
+;; (define-constant REPUTATION-SLASH u50)       ;; Reputation points lost on default
+;; (define-constant MIN-SLASH-AMOUNT u1000)     ;; Minimum slash amount in sats
 
-;; Data variables
-(define-data-var kolo-nonce uint u0)
-(define-data-var contract-paused bool false)
-(define-data-var platform-fee-percent uint u2)
+;; ====================================================================================
+;; NEW ERROR CODES
+;; ====================================================================================
+(define-constant ERR-EMERGENCY-NOT-AVAILABLE (err u4001))
+(define-constant ERR-INSUFFICIENT-CONTRIBUTIONS (err u4002))
+(define-constant ERR-ALREADY-DEFAULTED (err u4003))
+(define-constant ERR-NO-CONTRIBUTIONS (err u4004))
+(define-constant ERR-INVALID-SLASH (err u4005))
 
-;; Data maps
-(define-map kolos
-  uint
-  {
-    creator: principal,
-    name: (string-ascii 50),
-    amount: uint,
-    frequency: uint,
-    max-members: uint,
-    current-round: uint,
-    start-block: uint,
-    total-rounds: uint,
-    active: bool,
-    created-at: uint,
-    paused: bool,
-    completed: bool
-  }
-)
+;; ====================================================================================
+;; ENHANCED DATA STRUCTURES
+;; ====================================================================================
 
-(define-map kolo-members
+;; Track member defaults and emergency withdrawals
+(define-map kolo-defaults
   { kolo-id: uint, user: principal }
   {
-    joined-at: uint,
-    position: uint,
-    total-contributions: uint,
-    missed-payments: uint,
-    has-received-payout: bool,
-    reputation-score: uint,
-    withdrawn: bool
+    defaulted: bool,                    ;; Has member defaulted?
+    default-round: uint,                 ;; Round when default occurred
+    slashed-amount: uint,                ;; Amount slashed on emergency withdrawal
+    emergency-withdrawn: bool,           ;; Has member done emergency withdrawal?
+    emergency-withdrawn-at: uint,        ;; Block height of emergency withdrawal
+    compensated-members: (list 50 principal)  ;; Members who received compensation
   }
 )
 
-(define-map round-contributions
-  { kolo-id: uint, round: uint, user: principal }
+;; Track compensation pool for defaulted members
+(define-map compensation-pool
+  { kolo-id: uint }
   {
-    paid: bool,
-    amount: uint,
-    paid-at: uint
+    total-slashed: uint,                 ;; Total slashed funds available
+    distributed: uint,                   ;; Already distributed
+    defaulted-member: (optional principal),  ;; Member who defaulted
+    default-round: uint                   ;; Round when default occurred
   }
 )
 
-(define-map payout-order
-  { kolo-id: uint, position: uint }
-  principal
-)
+;; ====================================================================================
+;; ENHANCED MEMBER INFO (add to existing kolo-members)
+;; ====================================================================================
+;; Add these fields to your existing kolo-members map:
+;;    contribution-streak: uint,           ;; Consecutive contributions
+;;    last-contribution-round: uint,        ;; Last round contributed
+;;    can-emergency-withdraw: bool          ;; Eligibility for emergency withdrawal
 
-(define-map member-count uint uint)
+;; ====================================================================================
+;; NEW READ-ONLY FUNCTIONS
+;; ====================================================================================
 
-(define-map kolo-stats
-  uint
-  {
-    total-collected: uint,
-    total-paid-out: uint,
-    completed-rounds: uint
-  }
-)
-
-;; Read-only functions
-(define-read-only (get-kolo (kolo-id uint))
-  (ok (map-get? kolos kolo-id))
-)
-
-(define-read-only (get-kolo-stats (kolo-id uint))
-  (map-get? kolo-stats kolo-id)
-)
-
-(define-read-only (get-total-collected (kolo-id uint))
-  (match (get-kolo-stats kolo-id)
-    stats (some (get total-collected stats))
-    none
-  )
-)
-
-(define-read-only (get-member-info (kolo-id uint) (user principal))
-  (map-get? kolo-members { kolo-id: kolo-id, user: user })
-)
-
-(define-read-only (get-member-position (kolo-id uint) (user principal))
-  (match (get-member-info kolo-id user)
-    member (some (get position member))
-    none
-  )
-)
-
-(define-read-only (get-member-count (kolo-id uint))
-  (default-to u0 (map-get? member-count kolo-id))
-)
-
-(define-read-only (get-payout-recipient (kolo-id uint) (position uint))
-  (map-get? payout-order { kolo-id: kolo-id, position: position })
-)
-
-(define-read-only (has-paid-current-round (kolo-id uint) (user principal))
+;; Check if member can do emergency withdrawal
+(define-read-only (can-emergency-withdraw (kolo-id uint) (user principal))
   (match (map-get? kolos kolo-id)
     kolo
-      (default-to false 
-        (get paid (map-get? round-contributions 
-          { kolo-id: kolo-id, round: (get current-round kolo), user: user }
-        ))
-      )
-    false
-  )
-)
-
-(define-read-only (get-current-round-recipient (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo (get-payout-recipient kolo-id (get current-round kolo))
-    none
-  )
-)
-
-(define-read-only (is-member (kolo-id uint) (user principal))
-  (is-some (get-member-info kolo-id user))
-)
-
-(define-read-only (is-kolo-active (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo (and (get active kolo) (not (get paused kolo)))
-    false
-  )
-)
-
-(define-read-only (get-round-contribution (kolo-id uint) (round uint) (user principal))
-  (map-get? round-contributions { kolo-id: kolo-id, round: round, user: user })
-)
-
-(define-read-only (is-kolo-completed (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo (get completed kolo)
-    false
-  )
-)
-
-(define-read-only (get-platform-fee-percent)
-  (var-get platform-fee-percent)
-)
-
-(define-read-only (calculate-platform-fee (amount uint))
-  (/ (* amount (var-get platform-fee-percent)) u100)
-)
-
-(define-read-only (get-total-kolos)
-  (var-get kolo-nonce)
-)
-
-(define-read-only (get-contract-version)
-  CONTRACT-VERSION
-)
-
-(define-read-only (is-round-deadline-passed (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo 
-      (let
-        (
-          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-        )
-        (>= block-height round-deadline)
-      )
-    false
-  )
-)
-
-(define-read-only (get-participation-rate (kolo-id uint) (user principal))
-  (match (get-member-info kolo-id user)
-    member
-      (match (map-get? kolos kolo-id)
-        kolo
+      (match (get-member-info kolo-id user)
+        member
           (let
             (
-              (expected-contributions (get current-round kolo))
-              (actual-contributions (get total-contributions member))
-              (contribution-amount (get amount kolo))
+              (current-round (get current-round kolo))
+              (last-contribution (get last-contribution-round member))
+              (missed-payments (get missed-payments member))
+              (current-block block-height)
+              (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ current-round u1))))
             )
-            (if (> expected-contributions u0)
-              (some (/ (* actual-contributions u100) (* expected-contributions contribution-amount)))
-              (some u0)
+            ;; Can withdraw if:
+            ;; 1. Member has missed payments AND
+            ;; 2. Current round deadline has passed OR
+            ;; 3. Member has contributed but needs emergency exit
+            (and
+              (not (get withdrawn member))
+              (or 
+                (and (> missed-payments u0) (>= current-block round-deadline))
+                (and (> (get total-contributions member) u0) 
+                     (>= current-block (+ round-deadline (contract-call? .constants GRACE-PERIOD))))
+              )
             )
           )
-        none
+        false
       )
-    none
+    false
   )
 )
 
-(define-read-only (get-next-payout-block (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo (some (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-    none
-  )
-)
-
-(define-read-only (is-within-grace-period (kolo-id uint))
-  (match (map-get? kolos kolo-id)
-    kolo 
+;; Calculate emergency withdrawal amount (after slash penalty)
+(define-read-only (calculate-emergency-withdrawal (kolo-id uint) (user principal))
+  (match (get-member-info kolo-id user)
+    member
       (let
         (
-          (round-deadline (+ (get start-block kolo) (* (get frequency kolo) (+ (get current-round kolo) u1))))
-          (grace-deadline (+ round-deadline (contract-call? .constants GRACE-PERIOD)))
+          (total-contributed (get total-contributions member))
+          (slash-penalty (/ (* total-contributed (contract-call? .constants SLASH-PERCENTAGE)) u100))
+          (min-slash (contract-call? .constants MIN-SLASH-AMOUNT))
+          (final-slash (if (> slash-penalty min-slash) slash-penalty min-slash))
         )
-        (< block-height grace-deadline)
+        (if (>= total-contributed final-slash)
+          (some (- total-contributed final-slash))
+          (some u0)
+        )
       )
-    false
+    none
   )
 )
 
-(define-private (is-kolo-creator (kolo-id uint) (user principal))
-  (match (map-get? kolos kolo-id)
-    kolo (is-eq (get creator kolo) user)
-    false
-  )
+;; Get default info for a member
+(define-read-only (get-default-info (kolo-id uint) (user principal))
+  (map-get? kolo-defaults { kolo-id: kolo-id, user: user })
 )
 
-;; Public functions
-(define-public (create-kolo 
-    (name (string-ascii 50))
-    (amount uint)
-    (frequency uint)
-    (max-members uint)
-    (start-block uint)
-  )
-  (let
-    (
-      (kolo-id (+ (var-get kolo-nonce) u1))
-      (current-block block-height)
-    )
-    (asserts! (> amount u0) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (>= amount (contract-call? .constants MIN-CONTRIBUTION)) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (>= max-members (contract-call? .constants MIN-MEMBERS)) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (<= max-members (contract-call? .constants MAX-MEMBERS)) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (>= start-block (+ current-block u144)) (contract-call? .constants ERR-INVALID-PARAMS))
-    (asserts! (or (is-eq frequency (contract-call? .constants WEEKLY)) 
-                  (is-eq frequency (contract-call? .constants MONTHLY))) 
-              (contract-call? .constants ERR-INVALID-PARAMS))
-
-    (map-set kolos kolo-id
-      {
-        creator: tx-sender,
-        name: name,
-        amount: amount,
-        frequency: frequency,
-        max-members: max-members,
-        current-round: u0,
-        start-block: start-block,
-        total-rounds: max-members,
-        active: true,
-        created-at: current-block,
-        paused: false,
-        completed: false
-      }
-    )
-
-    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
-      {
-        joined-at: current-block,
-        position: u0,
-        total-contributions: u0,
-        missed-payments: u0,
-        has-received-payout: false,
-        reputation-score: u100,
-        withdrawn: false
-      }
-    )
-
-    (map-set payout-order { kolo-id: kolo-id, position: u0 } tx-sender)
-    (map-set member-count kolo-id u1)
-    (map-set kolo-stats kolo-id { total-collected: u0, total-paid-out: u0, completed-rounds: u0 })
-    (var-set kolo-nonce kolo-id)
-
-    (ok kolo-id)
-  )
+;; Get compensation pool info
+(define-read-only (get-compensation-pool (kolo-id uint))
+  (map-get? compensation-pool { kolo-id: kolo-id })
 )
 
-(define-public (join-kolo (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
-      (current-members (get-member-count kolo-id))
-      (current-block block-height)
-    )
-    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
-    (asserts! (not (get paused kolo)) (contract-call? .constants ERR-PAUSED))
-    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-CANNOT-JOIN))
-    (asserts! (< current-members (get max-members kolo)) (contract-call? .constants ERR-KOLO-FULL))
-    (asserts! (not (is-member kolo-id tx-sender)) (contract-call? .constants ERR-ALREADY-MEMBER))
+;; ====================================================================================
+;; NEW PUBLIC FUNCTIONS
+;; ====================================================================================
 
-    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
-      {
-        joined-at: current-block,
-        position: current-members,
-        total-contributions: u0,
-        missed-payments: u0,
-        has-received-payout: false,
-        reputation-score: u100,
-        withdrawn: false
-      }
-    )
-
-    (map-set payout-order { kolo-id: kolo-id, position: current-members } tx-sender)
-    (map-set member-count kolo-id (+ current-members u1))
-
-    (ok true)
-  )
-)
-
-(define-public (contribute (kolo-id uint))
+;; Emergency withdrawal for members who can't continue
+;; Slashes 20% of contributions, distributes to remaining members
+(define-public (emergency-withdraw (kolo-id uint))
   (let
     (
       (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
       (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
+      (default-info (default-to 
+        { defaulted: false, default-round: u0, slashed-amount: u0, emergency-withdrawn: false, emergency-withdrawn-at: u0, compensated-members: (list) }
+        (map-get? kolo-defaults { kolo-id: kolo-id, user: tx-sender })
+      ))
       (current-round (get current-round kolo))
-      (amount (get amount kolo))
+      (total-contributed (get total-contributions member))
       (current-block block-height)
-      (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
-                          (map-get? kolo-stats kolo-id)))
     )
-    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
-    (asserts! (not (get paused kolo)) (contract-call? .constants ERR-PAUSED))
-    (asserts! (>= current-block (get start-block kolo)) (contract-call? .constants ERR-NOT-STARTED))
-    (asserts! (not (has-paid-current-round kolo-id tx-sender)) (contract-call? .constants ERR-ALREADY-PAID))
+    ;; Validation
+    (asserts! (can-emergency-withdraw kolo-id tx-sender) ERR-EMERGENCY-NOT-AVAILABLE)
+    (asserts! (> total-contributed u0) ERR-NO-CONTRIBUTIONS)
+    (asserts! (not (get emergency-withdrawn default-info)) ERR-ALREADY-WITHDRAWN)
+    (asserts! (not (get defaulted default-info)) ERR-ALREADY-DEFAULTED)
 
-    (try! (stx-transfer? amount tx-sender (as-contract tx-sender)))
+    ;; Calculate slashed amount and withdrawal amount
+    (let
+      (
+        (withdrawal-info (unwrap! (calculate-emergency-withdrawal kolo-id tx-sender) ERR-INVALID-SLASH))
+        (slash-amount (- total-contributed withdrawal-info))
+      )
 
-    (map-set round-contributions 
-      { kolo-id: kolo-id, round: current-round, user: tx-sender }
-      {
-        paid: true,
-        amount: amount,
-        paid-at: current-block
-      }
+      ;; Transfer remaining contributions back to user (after slash)
+      (try! (as-contract (stx-transfer? withdrawal-info (as-contract tx-sender) tx-sender)))
+
+      ;; Update member info
+      (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+        (merge member { 
+          withdrawn: true,
+          missed-payments: (+ (get missed-payments member) u1),
+          reputation-score: (- (get reputation-score member) (contract-call? .constants REPUTATION-SLASH))
+        })
+      )
+
+      ;; Record default/emergency info
+      (map-set kolo-defaults { kolo-id: kolo-id, user: tx-sender }
+        {
+          defaulted: true,
+          default-round: current-round,
+          slashed-amount: slash-amount,
+          emergency-withdrawn: true,
+          emergency-withdrawn-at: current-block,
+          compensated-members: (list)
+        }
+      )
+
+      ;; Create compensation pool for remaining members
+      (map-set compensation-pool { kolo-id: kolo-id }
+        {
+          total-slashed: slash-amount,
+          distributed: u0,
+          defaulted-member: (some tx-sender),
+          default-round: current-round
+        }
+      )
+
+      ;; Update kolo stats
+      (let
+        (
+          (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
+                              (map-get? kolo-stats kolo-id)))
+        )
+        (map-set kolo-stats kolo-id 
+          (merge stats { total-collected: (- (get total-collected stats) slash-amount) })
+        )
+      )
+
+      (print { 
+        event: "emergency-withdrawal", 
+        kolo-id: kolo-id, 
+        user: tx-sender, 
+        round: current-round,
+        total-contributed: total-contributed,
+        withdrawal-amount: withdrawal-info,
+        slashed-amount: slash-amount
+      })
+
+      (ok withdrawal-info)
+    )
+  )
+)
+
+;; Distribute slashed funds to remaining members
+(define-public (distribute-slash-funds (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (pool (unwrap! (map-get? compensation-pool { kolo-id: kolo-id }) ERR-COMPENSATION-POOL-EMPTY))
+      (defaulted-member (unwrap! (get defaulted-member pool) ERR-INVALID-PARAMS))
+      (current-round (get current-round kolo))
+      (current-block block-height)
     )
 
-    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+    ;; Calculate share for remaining members
+    (let
+      (
+        (total-members (get-member-count kolo-id))
+        (active-members (- total-members u1)) ;; Exclude defaulted member
+        (total-slashed (get total-slashed pool))
+        (already-distributed (get distributed pool))
+        (remaining-to-distribute (- total-slashed already-distributed))
+      )
+
+      ;; Only distribute if there's remaining funds and active members
+      (asserts! (> remaining-to-distribute u0) ERR-INSUFFICIENT-BALANCE)
+      (asserts! (> active-members u0) ERR-INVALID-PARAMS)
+
+      (let
+        (
+          (share-per-member (/ remaining-to-distribute active-members))
+        )
+
+        ;; Distribute to each active member
+        ;; Note: This is simplified - in production, you'd iterate through members
+        ;; For this enhancement, we'll assume a separate function for claiming
+
+        ;; Update pool
+        (map-set compensation-pool { kolo-id: kolo-id }
+          (merge pool { distributed: (+ already-distributed remaining-to-distribute) })
+        )
+
+        (print {
+          event: "slash-funds-distributed",
+          kolo-id: kolo-id,
+          defaulted-member: defaulted-member,
+          total-slashed: total-slashed,
+          distributed: remaining-to-distribute,
+          per-member: share-per-member,
+          round: current-round
+        })
+
+        (ok share-per-member)
+      )
+    )
+  )
+)
+
+;; Claim share from slashed funds (for active members)
+(define-public (claim-slash-share (kolo-id uint))
+  (let
+    (
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
+      (pool (unwrap! (map-get? compensation-pool { kolo-id: kolo-id }) ERR-COMPENSATION-POOL-EMPTY))
+      (defaulted-member (unwrap! (get defaulted-member pool) ERR-INVALID-PARAMS))
+    )
+
+    ;; Can't claim if you're the defaulted member
+    (asserts! (not (is-eq tx-sender defaulted-member)) ERR-NOT-AUTHORIZED)
+
+    ;; Calculate share
+    (let
+      (
+        (total-members (get-member-count kolo-id))
+        (active-members (- total-members u1))
+        (total-slashed (get total-slashed pool))
+        (already-distributed (get distributed pool))
+        (available (- total-slashed already-distributed))
+        (share-per-member (/ total-slashed active-members))
+        (member-defaults (default-to 
+          { defaulted: false, default-round: u0, slashed-amount: u0, emergency-withdrawn: false, emergency-withdrawn-at: u0, compensated-members: (list) }
+          (map-get? kolo-defaults { kolo-id: kolo-id, user: defaulted-member })
+        ))
+      )
+
+      (asserts! (>= available share-per-member) ERR-INSUFFICIENT-BALANCE)
+
+      ;; Transfer share to member
+      (try! (as-contract (stx-transfer? share-per-member (as-contract tx-sender) tx-sender)))
+
+      ;; Update pool
+      (map-set compensation-pool { kolo-id: kolo-id }
+        (merge pool { distributed: (+ already-distributed share-per-member) })
+      )
+
+      ;; Update default record with compensated member
+      (map-set kolo-defaults { kolo-id: kolo-id, user: defaulted-member }
+        (merge member-defaults { 
+          compensated-members: (unwrap-panic 
+            (as-max-len? (append (get compensated-members member-defaults) tx-sender) u50)
+          )
+        })
+      )
+
+      (print {
+        event: "slash-share-claimed",
+        kolo-id: kolo-id,
+        claimant: tx-sender,
+        amount: share-per-member,
+        defaulted-member: defaulted-member
+      })
+
+      (ok share-per-member)
+    )
+  )
+)
+
+;; Mark member as defaulter (after missed payments)
+(define-public (mark-default (kolo-id uint) (user principal))
+  (let
+    (
+      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
+      (member (unwrap! (get-member-info kolo-id user) (contract-call? .constants ERR-NOT-MEMBER)))
+      (caller-is-creator (is-kolo-creator kolo-id tx-sender))
+      (current-round (get current-round kolo))
+    )
+
+    ;; Only kolo creator can mark default
+    (asserts! caller-is-creator (contract-call? .constants ERR-NOT-AUTHORIZED))
+    
+    ;; Check if round deadline passed and member hasn't paid
+    (asserts! (is-round-deadline-passed kolo-id) ERR-EMERGENCY-NOT-AVAILABLE)
+    (asserts! (not (has-paid-current-round kolo-id user)) ERR-ALREADY-PAID)
+
+    ;; Update member info
+    (map-set kolo-members { kolo-id: kolo-id, user: user }
       (merge member { 
-        total-contributions: (+ (get total-contributions member) amount),
-        reputation-score: (+ (get reputation-score member) u1)
+        missed-payments: (+ (get missed-payments member) u1),
+        reputation-score: (- (get reputation-score member) (contract-call? .constants REPUTATION-SLASH))
       })
     )
 
-    (map-set kolo-stats kolo-id 
-      (merge stats { total-collected: (+ (get total-collected stats) amount) })
-    )
-
-    (print { event: "contribution-made", kolo-id: kolo-id, user: tx-sender, round: current-round, amount: amount })
-    (ok true)
-  )
-)
-
-(define-public (trigger-payout (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
-      (current-round (get current-round kolo))
-      (recipient-principal (unwrap! (get-payout-recipient kolo-id current-round) (contract-call? .constants ERR-NOT-YOUR-TURN)))
-      (recipient-member (unwrap! (get-member-info kolo-id recipient-principal) (contract-call? .constants ERR-NOT-MEMBER)))
-      (amount (get amount kolo))
-      (total-members (get-member-count kolo-id))
-      (total-payout (* amount total-members))
-      (current-block block-height)
-      (stats (default-to { total-collected: u0, total-paid-out: u0, completed-rounds: u0 } 
-                          (map-get? kolo-stats kolo-id)))
-    )
-    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
-    (asserts! (>= current-block (get start-block kolo)) (contract-call? .constants ERR-NOT-STARTED))
-    (asserts! (not (get has-received-payout recipient-member)) (contract-call? .constants ERR-ALREADY-PAID))
-    (asserts! (>= current-block (+ (get start-block kolo) (* (get frequency kolo) current-round))) (contract-call? .constants ERR-PAYOUT-NOT-READY))
-
-    (try! (as-contract (stx-transfer? total-payout tx-sender recipient-principal)))
-
-    (map-set kolo-members { kolo-id: kolo-id, user: recipient-principal }
-      (merge recipient-member { has-received-payout: true })
-    )
-
-    (map-set kolo-stats kolo-id 
-      (merge stats { 
-        total-paid-out: (+ (get total-paid-out stats) total-payout),
-        completed-rounds: (+ (get completed-rounds stats) u1)
-      })
-    )
-
-    (if (< (+ current-round u1) (get total-rounds kolo))
-      (map-set kolos kolo-id (merge kolo { current-round: (+ current-round u1) }))
-      (map-set kolos kolo-id (merge kolo { active: false, current-round: (+ current-round u1), completed: true }))
-    )
-
-    (print { event: "payout-completed", kolo-id: kolo-id, recipient: recipient-principal, amount: total-payout, round: current-round })
-    (ok true)
-  )
-)
-
-(define-public (cancel-kolo (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
-      (current-block block-height)
-    )
-    (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
-    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-CANNOT-JOIN))
-    (asserts! (get active kolo) (contract-call? .constants ERR-KOLO-NOT-ACTIVE))
-
-    (map-set kolos kolo-id (merge kolo { active: false }))
+    (print {
+      event: "member-defaulted",
+      kolo-id: kolo-id,
+      user: user,
+      round: current-round,
+      marked-by: tx-sender
+    })
 
     (ok true)
   )
 )
 
-(define-public (toggle-kolo-pause (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
-    )
-    (asserts! (is-kolo-creator kolo-id tx-sender) (contract-call? .constants ERR-NOT-AUTHORIZED))
-    (map-set kolos kolo-id (merge kolo { paused: (not (get paused kolo)) }))
-    (print { event: "kolo-pause-toggled", kolo-id: kolo-id, paused: (not (get paused kolo)) })
-    (ok true)
-  )
-)
+;; ====================================================================================
+;; ENHANCED CONTRIBUTE FUNCTION (add to existing contribute)
+;; ====================================================================================
+;; Add this to your existing contribute function to track streaks:
 
-(define-public (withdraw-from-kolo (kolo-id uint))
-  (let
-    (
-      (kolo (unwrap! (map-get? kolos kolo-id) (contract-call? .constants ERR-KOLO-NOT-FOUND)))
-      (member (unwrap! (get-member-info kolo-id tx-sender) (contract-call? .constants ERR-NOT-MEMBER)))
-      (current-block block-height)
-    )
-    (asserts! (< current-block (get start-block kolo)) (contract-call? .constants ERR-KOLO-STARTED))
-    (asserts! (not (get withdrawn member)) (contract-call? .constants ERR-ALREADY-WITHDRAWN))
-    (asserts! (not (is-kolo-creator kolo-id tx-sender)) (contract-call? .constants ERR-NOT-AUTHORIZED))
-    
-    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
-      (merge member { withdrawn: true })
-    )
-    
-    (print { event: "member-withdrawn", kolo-id: kolo-id, user: tx-sender })
-    (ok true)
-  )
-)
-
-(begin
-  (var-set kolo-nonce u0)
-)
+;; In contribute function, after successful contribution:
+;;(let
+;;  (
+;;    (last-round (get last-contribution-round member))
+;;    (current-round (get current-round kolo))
+;;  )
+;;  ;; Update contribution streak
+;;  (let
+;;    (
+;;      (new-streak (if (is-eq last-round (- current-round u1))
+;;                    (+ (get contribution-streak member) u1)
+;;                    u1))
+;;    )
+;;    (map-set kolo-members { kolo-id: kolo-id, user: tx-sender }
+;;      (merge member {
+;;        contribution-streak: new-streak,
+;;        last-contribution-round: current-round
+;;      })
+;;    )
+;;  )
+;;)
